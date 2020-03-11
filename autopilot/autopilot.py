@@ -25,7 +25,7 @@ class AutoPilot:
         self.back_wheels = back_wheels
         self.camera_control = camera_control
 
-        self.debug = debug
+        self.debug = True #debug
         self.test_mode = test_mode
 
         # Thread variables
