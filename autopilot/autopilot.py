@@ -66,7 +66,7 @@ class AutoPilot:
 
             # !! Use machine learning to determine angle and speed (if necessary - you may decide to use fixed speed) !!
 
-            interpreter = tf.lite.Interpreter("./models/converted_model.tflite")
+            interpreter = tf.lite.Interpreter("/home/pi/autopilot/models/converted_model.tflite")
             interpreter.allocate_tensors()
             
             input_details = interpreter.get_input_details()
@@ -86,14 +86,14 @@ class AutoPilot:
             # Use `tensor()` in order to get a pointer to the tensor.
             output_data = interpreter.get_tensor(output_details[0]['index'])
             
-            speed = output_data[0]
-            angle = output_data[1]
+            angle = output_data[0]
+            speed = output_data[1]
 
             # !! End of machine learning !!
 
             angle = int(angle)
             speed = int(speed)
-
+            print('Speed: %d, angle: %d ' % (angle, speed))
             if self.debug:
                 print('Speed: %d, angle: %d ' % (angle, speed))
 
