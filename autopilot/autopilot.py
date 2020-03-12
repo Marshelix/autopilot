@@ -74,8 +74,10 @@ class AutoPilot:
 
             # Test model on random input data.
             input_shape = input_details[0]['shape']
+            
+            new_data_shape = (int(input_shape[1]),int(input_shape[2]))
             #need to reshape the frame into input data
-            input_data = cv2.resize(frame, input_shape)
+            input_data = cv2.resize(frame, new_data_shape)
             #
             
             interpreter.set_tensor(input_details[0]['index'], input_data)
