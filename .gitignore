@@ -8,6 +8,8 @@
 *~
 *.so
 *.out
+*.png
+*.csv
 __pycache__
 .DS_Store
 .idea
