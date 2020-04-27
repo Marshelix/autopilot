@@ -10,7 +10,7 @@ from tensorflow.keras import Sequential
 from tensorflow.keras.layers import BatchNormalization, Flatten, Dense, Conv2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import load_model
-
+import tensorflow.keras.preprocessing.image as imgprep
 
 # Data loading
 import cv2
@@ -151,15 +151,19 @@ def image_data_gen(imgs, targets,batch_size):
             batch_targets.append(target)
         yield(np.asarray(batch_images), np.asarray(batch_targets))
 
+aug = imgprep.ImageDataGenerator(rotation_range=20, zoom_range=0.15,
+	width_shift_range=0.2, height_shift_range=0.2, shear_range=0.15,
+	horizontal_flip=True, fill_mode="nearest")
+
 # saves the model weights after each epoch if the validation loss decreased
 
         
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(model_output_dir,'AI_driver_check_all.h5'), verbose=1, save_best_only=True)
 es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='auto', baseline=None, restore_best_weights=True)
-history = model.fit_generator(image_data_gen( X_train, y_train, batch_size=100),
+history = model.fit_generator(aug.flow(np.array(X_train),y_train,batch_size = 100),
                               steps_per_epoch=300,
                               epochs=500,
-                              validation_data = image_data_gen( X_valid, y_valid, batch_size=100),
+                              validation_data = image_data_gen(X_valid,y_valid,100),
                               validation_steps=200,
                               verbose=1,
                               shuffle=1,
