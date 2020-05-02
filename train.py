@@ -29,7 +29,17 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 #Adam stuff
 import pandas as pd
+import logging
+import sys
 
+logging.basicConfig(level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("car_log.txt"),
+        logging.StreamHandler(sys.stdout)
+    ])
+logger = logging.getLogger("CarAi")
+logger.debug("File created. Starting Log.")
 '''
     File to train a simple cnn on image data gathered with pi-car
     Model built and trained using keras, transferrable to tensorflow lite
@@ -44,7 +54,7 @@ results = {}
 def load_test_dataset(resize_percent = 60):
     dirname = "./test_data/test_data/**.png"
     fnames_full = glob.glob(dirname, recursive = True)
-    print(str(len(fnames_full)) + " names found.")
+    logger.debug(str(len(fnames_full)) + " names found.")
     images = [[] for i in range(len(fnames_full))]  #override image according to name
     for fname in fnames_full:
         img = pltimg.imread(fname)
@@ -64,12 +74,12 @@ def load_adam_dataset(resize_percent = 60):
     targets = []
     images = []
     dirname = "./training_data/**/*.png"
-    print("Loading data from "+dirname)
+    logger.info("Loading data from "+dirname)
     fnames_full = glob.glob(dirname,recursive = True)
-    print(str(len(fnames_full)) + " names found")
+    logger.info(str(len(fnames_full)) + " names found")
     for fname in fnames_full:
         fname_split = fname.split("\\")
-        #print("Loading {}".format(fname))
+        logger.debug("Loading {}".format(fname))
         name = fname_split[2]
         img = pltimg.imread(fname)
         width = int(img.shape[1] * resize_percent / 100)
@@ -86,14 +96,14 @@ def load_dataset(resize_percent =  60):
     images = []
     targets = []
     dirname = "./data/**/*.png"
-    print("Loading data from "+dirname)
+    logger.info("Loading data from "+dirname)
     fnames_full = glob.glob(dirname,recursive = True)
-    print(str(len(fnames_full)) + " names found")
+    logger.info(str(len(fnames_full)) + " names found")
     for fname in fnames_full:
         fname_split = fname.split("\\")
         
         name = fname_split[2]
-        #print("Loading {}".format(fname))
+        logger.debug("Loading {}".format(fname))
         speed = (float(name.split(".")[0].split("_")[2]))/35.0
         angle = (float(name.split(".")[0].split("_")[1])-50.0)/80.0
         img = pltimg.imread(fname)
@@ -113,7 +123,7 @@ imgs = imgs + adam_images
 targets = targets + adam_targets
 in_shape = imgs[0].shape
 X_train, X_valid, y_train, y_valid = train_test_split( imgs, targets, test_size=0.2)
-print("Training data: %d\nValidation data: %d" % (len(X_train), len(X_valid)))
+logger.info("Training data: %d\nValidation data: %d" % (len(X_train), len(X_valid)))
 
 #Define Model:
 def Model():
@@ -136,7 +146,7 @@ def Model():
     return model
 
 model = Model()
-print(model.summary())
+logger.info(model.summary())
 
 
 def image_data_gen(imgs, targets,batch_size):
@@ -153,30 +163,37 @@ def image_data_gen(imgs, targets,batch_size):
 
 aug = imgprep.ImageDataGenerator(rotation_range=20, zoom_range=0.15,
 	width_shift_range=0.2, height_shift_range=0.2, shear_range=0.15,
-	horizontal_flip=True, fill_mode="nearest")
+	horizontal_flip=False, fill_mode="nearest")
 
 # saves the model weights after each epoch if the validation loss decreased
 
-        
+csvlogger = tf.keras.callbacks.CSVLogger('training.log')
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(model_output_dir,'AI_driver_check_all.h5'), verbose=1, save_best_only=True)
 es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='auto', baseline=None, restore_best_weights=True)
 history = model.fit_generator(aug.flow(np.array(X_train),y_train,batch_size = 100),
                               steps_per_epoch=300,
-                              epochs=500,
+                              epochs=100,
                               validation_data = image_data_gen(X_valid,y_valid,100),
                               validation_steps=200,
                               verbose=1,
                               shuffle=1,
-                              callbacks=[checkpoint_callback,es_callback])
+                              callbacks=[checkpoint_callback,es_callback,csvlogger])
 # always save model output as soon as model finishes training
 name = os.path.join(model_output_dir,'AI_driver_all.h5')
-model.save(name)
+best_loss = 0.03666905602440238;
+
 plt.figure()
 plt.plot(history.history['loss'],color='blue')
 plt.legend(["training loss"])
+plt.title(str(np.min(history.history["loss"])))
+if np.min(history.history["val_loss"]) < best_loss:
+    plt.savefig("training_loss.png")
 plt.figure()
 plt.plot(history.history['val_loss'],color='red')
 plt.legend([ "validation loss"])
+plt.title(str(np.min(history.history["val_loss"])))
+if np.min(history.history["val_loss"]) < best_loss:  
+    plt.savefig("valid_loss.png");
 results[mode] = [history.history['loss'][-1],history.history['val_loss'][-1]]
 
 
@@ -185,12 +202,15 @@ colnames = ["angle","speed"]
 test_images = load_test_dataset()
 prediction = model.predict(test_images[0])
 df = pd.DataFrame(prediction, columns = colnames)
-df["image_id"] = range(1,len(test_images)+1)
+df["image_id"] = range(1,928)
 df = df.reindex(columns = ["image_id","angle","speed"])
 df.index = df["image_id"]
 df = df[["angle","speed"]]
-#write
-df.to_csv("prediction.csv")
+#write model and prediction to file if better than best loss.
+if np.min(history.history["val_loss"]) < best_loss:
+    logging.info("New best loss: {}".format(np.min(history.history["val_loss"])))
+    model.save(name)
+    df.to_csv("prediction.csv")
 
 
 #converter = tf.lite.TFLiteConverter.from_keras_model(model)
