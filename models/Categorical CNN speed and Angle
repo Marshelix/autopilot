@@ -1,0 +1,616 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "CNN_cat.ipynb",
+      "provenance": [],
+      "collapsed_sections": [],
+      "machine_shape": "hm"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "HuSeMoAwDrbI",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import tensorflow as tf\n",
+        "import cv2\n",
+        "from tensorflow import keras\n",
+        "from tensorflow.keras import layers\n",
+        "from tensorflow.keras.preprocessing.image import ImageDataGenerator\n",
+        "import matplotlib.pyplot as plt\n",
+        "import numpy as np\n",
+        "import random \n",
+        "import os\n",
+        "import glob\n",
+        "from sklearn.utils import shuffle\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.metrics import mean_squared_error, r2_score\n",
+        "import pandas as pd\n",
+        "import pickle\n",
+        "from google.colab import drive\n",
+        "from numpy import array\n",
+        "from numpy import argmax\n",
+        "from tensorflow.keras.utils import to_categorical\n",
+        "from sklearn.preprocessing import LabelEncoder\n",
+        "from sklearn.preprocessing import OneHotEncoder\n",
+        "import pandas as pd \n",
+        "import time\n",
+        "%matplotlib inline\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "1cI2gR2TR9Yv",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "\n",
+        "drive.mount('/content/gdrive')\n",
+        "model_output_directory = '/content/gdrive/My Drive/train_pickle/model_output'\n",
+        "training_data_directory = '/content/gdrive/My Drive/train_pickle/train_flipped.pickle'\n",
+        "target_data_directory = '/content/gdrive/My Drive/train_pickle/label_flipped.pickle'\n",
+        "testing_data_directory = '/content/gdrive/My Drive/train_pickle/test_data/test_data_image'\n",
+        "prediction_data_output_directory = '/content/train_pickle/testing_data/prediction_output'\n",
+        "\n",
+        "results_a = dict()\n",
+        "results_s = dict()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Sd7gCd01SDMY",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# importing datasets\n",
+        "\n",
+        "target_df = pickle.load(open(target_data_directory, 'rb'))\n",
+        "target_df = pd.DataFrame(target_df, columns=['angle','speed'])\n",
+        "target_df.head()\n",
+        "training_ds_open = open(training_data_directory, 'rb')\n",
+        "train_ds = pickle.load(training_ds_open)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ilgrrv_6pii9",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "no_of_speed = list(set(target_df.speed.astype(int)))  #\n",
+        "no_of_angle = list(set(target_df.angle)) \n",
+        "print(no_of_angle)\n",
+        "print(no_of_speed)\n",
+        "print('Number of unqiue angles: {}'.format(len(no_of_angle)))\n",
+        "print('Number of unqiue speeds: {}'.format(len(no_of_speed)))\n",
+        "\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "RwkbPmUmSRLp",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "#Define Model for prediction class of angel:\n",
+        "num_of_angle = len(no_of_angle)\n",
+        "num_of_speed =len(no_of_speed)\n",
+        "print(num_of_angle)\n",
+        "# train two networks, one for each item to be predicted \n",
+        "# split targets \n",
+        "target_a = target_df.angle[:2075]\n",
+        "target_s = target_df.speed[:2075]\n",
+        "t_a = pd.get_dummies(target_a)\n",
+        "t_s = pd.get_dummies(target_s)\n",
+        "\n",
+        "pickle.dump(t_a, open(model_output_directory +'/cat_info_a_dummy.pickle', 'wb'))\n",
+        "pickle.dump(t_s, open(model_output_directory +'/cat_info_s_dummy.pickle', 'wb'))\n",
+        "\n",
+        "\n",
+        "print(t_a)\n",
+        "print(t_a.astype(bool).sum(axis=0))\n",
+        "print(t_s)\n",
+        "print(t_s.astype(bool).sum(axis=0))\n",
+        "print(np.shape(target_a))\n",
+        "print(target_s)\n",
+        "print(target_a)\n",
+        "print(type(target_a))\n",
+        "print(type(target_s))\n",
+        "#print('Number of unqiue angles: {}'.format(len(list(set(target_a)))))\n",
+        "\n",
+        "\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "16HooJMQSOlB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# categorical angles\n",
+        "X_train_a, X_valid_a, y_train_a, y_valid_a = train_test_split( train_ds[:2075], t_a.to_numpy(), test_size=0.2)\n",
+        "in_shape_a = X_train_a[0].shape\n",
+        "print(\"Training data: {}\\nValidation data: {}\\nInput shape: {}\" .format( len(X_train_a), len(X_valid_a), in_shape_a   ))\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "UKJpdQYEQyRg",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "\n",
+        "def Model_a():\n",
+        "    model = tf.keras.Sequential()\n",
+        "    model.add(tf.keras.layers.BatchNormalization(input_shape = in_shape_a))\n",
+        "    model.add(layers.Conv2D(filters = 12,kernel_size =(3,3), strides = (2,2), input_shape = in_shape_a, activation = \"elu\"))\n",
+        "    model.add(layers.Conv2D(filters= 30, kernel_size= (3,3) ,strides = (2,2), activation = \"elu\")) \n",
+        "    model.add(layers.Conv2D(filters = 40,kernel_size = (5,5),strides = (2,2), activation = \"elu\"))\n",
+        "    model.add(layers.Conv2D(filters = 64, kernel_size = (5,5),strides = (2,2), activation = \"elu\"))\n",
+        "    model.add(layers.Flatten())\n",
+        "    model.add(layers.Dense(units = 150, activation = \"elu\"))\n",
+        "    model.add(layers.Dense(units = 100, activation = \"elu\"))\n",
+        "    model.add(layers.Dense(units=50, activation=\"elu\"))\n",
+        "    model.add(layers.Dropout(0.5))\n",
+        "    model.add(layers.Dense(num_of_angle, activation='softmax')) # angle class and speed class\n",
+        "    model.compile(loss='categorical_crossentropy',\n",
+        "                  optimizer='adam',\n",
+        "                  metrics=['accuracy'])\n",
+        "    return model\n",
+        "model_a = Model_a()\n",
+        "print(model_a.summary())"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "TZw-qFi1QFAt",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def image_data_gen(imgs, targets, batch_size):\n",
+        "    while True:\n",
+        "        batch_images = []\n",
+        "        batch_targets = []\n",
+        "        for i in range(batch_size):\n",
+        "            random_index = random.randint(0,len(imgs)-1)\n",
+        "            img = imgs[random_index]\n",
+        "            target = targets[random_index]\n",
+        "            batch_images.append(img)\n",
+        "            batch_targets.append(target)\n",
+        "        yield(np.asarray(batch_images), np.asarray(batch_targets))\n",
+        "\n",
+        "aug = ImageDataGenerator(rotation_range=20,\n",
+        "                          zoom_range=0.15,\n",
+        "                          width_shift_range=0.2,\n",
+        "                           height_shift_range=0.2,\n",
+        "                         shear_range=0.15,\n",
+        "                         brightness_range=(0.1,1),\n",
+        "                         horizontal_flip=False,\n",
+        "                          fill_mode=\"nearest\")\n",
+        "\n",
+        "# saves the model weights after each epoch if the validation loss decreased\n",
+        "\n",
+        "\n",
+        "checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(model_output_directory,'CNN_Cat_angle_model_AW_v3.h5'),\n",
+        "                                                         verbose=1,\n",
+        "                                                         save_best_only=True)\n",
+        "\n",
+        "es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy',\n",
+        "                                               min_delta=0,\n",
+        "                                               patience=10,\n",
+        "                                               verbose=1,\n",
+        "                                               mode='auto',\n",
+        "                                               baseline=None,\n",
+        "                                               restore_best_weights=True)\n",
+        "\n",
+        "history_a = model_a.fit_generator(aug.flow( np.array(X_train_a),y_train_a,batch_size = 32),steps_per_epoch = 100,\n",
+        "epochs=250,\n",
+        "validation_data = image_data_gen(X_valid_a,y_valid_a,32),\n",
+        "validation_steps=100,\n",
+        "verbose=1,\n",
+        "shuffle=1,\n",
+        "callbacks=[checkpoint_callback,es_callback])\n",
+        "\n",
+        "name = os.path.join(model_output_directory,'CNN_Cat_angle_model_AW_v3.h5')\n",
+        "model_a.save(name)\n",
+        "plt.figure()\n",
+        "plt.plot(history_a.history['accuracy'],color='blue')\n",
+        "plt.legend([\"training accuracy\"])\n",
+        "plt.figure()\n",
+        "plt.plot(history_a.history['val_accuracy'],color='red')\n",
+        "plt.legend([ \"validation accuracy\"])\n",
+        "results_a[model_a] = [history_a.history['accuracy'][-1],history_a.history['val_accuracy'][-1]]\n",
+        "\n",
+        "with open(model_output_directory+'/trainingHistoryDic_a3.pickle', 'wb') as f:\n",
+        "  pickle.dump(history_a.history, f)\n",
+        "\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "pWvlS-r-R3J0",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# categorical speeds\n",
+        "X_train_s, X_valid_s, y_train_s, y_valid_s = train_test_split( train_ds, t_s.to_numpy(), test_size=0.2)\n",
+        "in_shape_s = X_train_s[0].shape\n",
+        "print(\"Training data: {}\\nValidation data: {}\\nInput shape: {}\" .format( len(X_train_s), len(X_valid_s), in_shape_s   ))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "VcgQh2BihINT",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def Model_s():\n",
+        "    model = tf.keras.Sequential()\n",
+        "    model.add(tf.keras.layers.BatchNormalization(input_shape = in_shape_a))\n",
+        "    model.add(layers.Conv2D(filters = 12,kernel_size =(3,3), strides = (2,2), input_shape = in_shape_a, activation = \"elu\"))\n",
+        "    model.add(layers.Conv2D(filters= 30, kernel_size= (3,3) ,strides = (2,2), activation = \"elu\")) \n",
+        "    model.add(layers.Conv2D(filters = 40,kernel_size = (5,5),strides = (2,2), activation = \"elu\"))\n",
+        "    model.add(layers.Conv2D(filters = 64, kernel_size = (5,5),strides = (2,2), activation = \"elu\"))\n",
+        "    model.add(layers.Flatten())\n",
+        "    model.add(layers.Dense(units = 150, activation = \"elu\"))\n",
+        "    model.add(layers.Dense(units = 100, activation = \"elu\"))\n",
+        "    model.add(layers.Dense(units=50, activation=\"elu\"))\n",
+        "    model.add(layers.Dropout(0.5))\n",
+        "    model.add(layers.Dense(num_of_speed, activation='softmax')) # angle class and speed class\n",
+        "    model.compile(loss='categorical_crossentropy',\n",
+        "                  optimizer='adam',\n",
+        "                  metrics=['accuracy'])\n",
+        "    return model\n",
+        "model_s = Model_s()\n",
+        "print(model_s.summary())\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "YZTnBYefiDwo",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def image_data_gen(imgs, targets, batch_size):\n",
+        "    while True:\n",
+        "        batch_images = []\n",
+        "        batch_targets = []\n",
+        "        for i in range(batch_size):\n",
+        "            random_index = random.randint(0,len(imgs)-1)\n",
+        "            img = imgs[random_index]\n",
+        "            target = targets[random_index]\n",
+        "            batch_images.append(img)\n",
+        "            batch_targets.append(target)\n",
+        "        yield(np.asarray(batch_images), np.asarray(batch_targets))\n",
+        "\n",
+        "aug = ImageDataGenerator(rotation_range=20,\n",
+        "                          zoom_range=0.15,\n",
+        "                          width_shift_range=0.2,\n",
+        "                           height_shift_range=0.2,\n",
+        "                         shear_range=0.15,\n",
+        "                         brightness_range=(0.1,1),\n",
+        "                         horizontal_flip=False,\n",
+        "                          fill_mode=\"nearest\")\n",
+        "checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(model_output_directory,'CNN_Cat_speed_model_AW_v3.h5'),\n",
+        "                                                         verbose=1,\n",
+        "                                                         save_best_only=True)\n",
+        "\n",
+        "es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy',\n",
+        "                                               min_delta=0,\n",
+        "                                               patience=10,\n",
+        "                                               verbose=1,\n",
+        "                                               mode='auto',\n",
+        "                                               baseline=None,\n",
+        "                                               restore_best_weights=True)\n",
+        "\n",
+        "history_s = model_s.fit_generator(aug.flow(np.array(X_train_s),y_train_s,batch_size = 32),\n",
+        "                                  steps_per_epoch = 100,\n",
+        "                                  epochs=250,\n",
+        "                                  validation_data = image_data_gen(X_valid_s,y_valid_s,32),\n",
+        "                                  validation_steps=100,\n",
+        "                                  verbose=1,\n",
+        "                                  shuffle=1,\n",
+        "                                  callbacks=[checkpoint_callback,es_callback])\n",
+        "\n",
+        "# always save model output as soon as model finishes training\n",
+        "name = os.path.join(model_output_directory,'CNN_Cat_speed_model_AW_v3.h5')\n",
+        "model_s.save(name)\n",
+        "plt.figure()\n",
+        "plt.plot(history_s.history['accuracy'],color='blue')\n",
+        "plt.legend([\"training accuracy\"])\n",
+        "plt.figure()\n",
+        "plt.plot(history_s.history['val_accuracy'],color='red')\n",
+        "plt.legend([ \"validation accuracy\"])\n",
+        "results_s[model_s] = [  history_s.history['accuracy'][-1],\n",
+        "                      history_s.history['val_accuracy'][-1]  ]\n",
+        "\n",
+        "with open(model_output_directory+'/trainingHistoryDic_s3.pickle', 'wb') as f:\n",
+        "  pickle.dump(history_s.history, f)\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Wi8CuOTL46BW",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "\n",
+        "w_a_path =  model_output_directory + '/CNN_Cat_angle_model_AW_v3.h5'\n",
+        "def load_trained_model_a(w_a_path):\n",
+        "   model_a = Model_a()\n",
+        "   model_a.load_weights(w_a_path)\n",
+        "load_trained_model_a(w_a_path)\n",
+        "model_a.summary()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "jRqAJ07Q47-w",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "w_s_path = model_output_directory + '/CNN_Cat_speed_model_AW_v3.h5'\n",
+        "def load_trained_model_s(w_s_path):\n",
+        "   model_s = Model_s()\n",
+        "   model_s.load_weights(w_s_path)\n",
+        "load_trained_model_s(w_s_path)\n",
+        "model_s.summary()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "EAA0EiuGvFLe",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "angle_list = list(t_a.columns.values)\n",
+        "speed_list = list(t_s.columns.values)\n",
+        "print('Angle list: {}'.format(angle_list))\n",
+        "print('Speed list: {}'.format(speed_list))\n",
+        "print(np.shape(X_train_a))\n",
+        "i = 237\n",
+        "plt.imshow(X_train_a[i])\n",
+        "p = model_as(X_train_a[i][np.newaxis])\n",
+        "ang = model_a(X_train_a[i][np.newaxis])\n",
+        "speed = model_s(X_train_a[i][np.newaxis])\n",
+        "print('Function model_as:{} \\n Angle in probability: {} \\n Speed in probability: {}'.format(p,ang,speed))\n",
+        "# 9.9999893e-01 1.0410367e-06"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "9fkNkKAlKtdB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "\n",
+        "plt.imshow(train_ds[3])\n",
+        "i = 50\n",
+        "prediction_a = model_a.predict(test_images[0][3][i][np.newaxis]).tolist()[0]\n",
+        "plt.imshow(test_images[0][3])\n",
+        "#prediction_s = model_s.predict(test_images[0][i][np.newaxis]).tolist()[0]\n",
+        "#prediction_a = model_a.predict(test_images[0][i][np.newaxis]).tolist()[0]\n",
+        "#print(prediction_a)\n",
+        "#print(prediction_s)\n",
+        "prediction_a_index = prediction_a.index(max(prediction_a))\n",
+        "#prediction_s_index = prediction_s.index(max(prediction_s))\n",
+        "prediction_a = angle_list[prediction_a_index]\n",
+        "\n",
+        "# prediction_s = speed_list[prediction_s_index]\n",
+        "print(prediction_a)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "tstMJxVqfX0q",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from sklearn.metrics import confusion_matrix\n",
+        "true_a = target_a[:100]\n",
+        "angle_list = list(t_a.columns.values)\n",
+        "\n",
+        "pred_a = []\n",
+        "for i in range(100):\n",
+        "  #prediction_s = model_s.predict(X_train_a[i][np.newaxis]).tolist()[0]\n",
+        "  prediction_a = model_a.predict(X_train_a[i][np.newaxis]).tolist()[0]\n",
+        "  #plt.imshow(X_train_s[i])\n",
+        "  #prediction_s = model_s.predict(test_images[0][i][np.newaxis]).tolist()[0]\n",
+        "  #prediction_a = model_a.predict(test_images[0][i][np.newaxis]).tolist()[0]\n",
+        "  #print(prediction_a)\n",
+        "  #print(prediction_s)\n",
+        "  prediction_a_index = prediction_a.index(max(prediction_a))\n",
+        "  #print(prediction_a_index)\n",
+        "  #prediction_s_index = prediction_s.index(max(prediction_s))\n",
+        "  prediction_a = no_of_angle[prediction_a_index]\n",
+        "\n",
+        " # prediction_s = speed_list[prediction_s_index]\n",
+        "  pred_a.append(prediction_a)\n",
+        "  #print('angle, speed :{}, {}'.format(prediction_a, prediction_a))\n",
+        "\n",
+        "print(pred_a, true_a)\n",
+        "\n",
+        "confusion_matrix(list(true_a), pred_a, labels=list(t_a.columns.values))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "BdAWMRWLWrOQ",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def load_test_dataset():\n",
+        "    dirname = testing_data_directory+'/**.png'\n",
+        "    fnames_full = glob.glob(dirname, recursive = True)\n",
+        "    print(str(len(fnames_full)) + \" names found.\")\n",
+        "    images = [[] for i in range(len(fnames_full))]  #override image according to name\n",
+        "    for fname in fnames_full:\n",
+        "      img = plt.imread(fname)\n",
+        "      width = int(img.shape[1])\n",
+        "      height = int(img.shape[0])\n",
+        "      dim = (width, height)\n",
+        "     # print(fname)\n",
+        "     # print(fname.split(testing_data_directory+\"/\")[1])\n",
+        "      resized = cv2.resize(img ,dim, interpolation = cv2.INTER_AREA)\n",
+        "\n",
+        "      name_idx = int(fname.split(testing_data_directory+\"/\")[1].split(\".\")[0])-1\n",
+        "      # print(name_idx)\n",
+        "      images[name_idx] = resized\n",
+        "    return np.asarray([images])\n",
+        "    \n",
+        "\n",
+        "    "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "i91yLfvIDmms",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def model_as(img):\n",
+        "  angle_list = list(t_a.columns.values)\n",
+        "  speed_list = list(t_s.columns.values)\n",
+        "  prediction_a = model_a.predict(img).tolist()[0]\n",
+        "  prediction_s = model_s.predict(img).tolist()[0]\n",
+        "  prediction_a_index = prediction_a.index(max(prediction_a))\n",
+        "  prediction_s_index = prediction_s.index(max(prediction_s))\n",
+        "  prediction_a = angle_list[prediction_a_index]\n",
+        "  prediction_s = speed_list[prediction_s_index]\n",
+        "  \n",
+        "  return [prediction_a, prediction_s]\n",
+        "\n",
+        "test_images = load_test_dataset\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Pah8ipCUFVlB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "colnames = [\"angle\",\"speed\"]\n",
+        "test_images = load_test_dataset()\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "bmQH_WqkGoFr",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "print(test_images.shape)\n",
+        "print(test_images[0].shape)\n",
+        "print(test_images[0][1][np.newaxis].shape)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Knp7vCCTILCx",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "\n",
+        "df[\"image_id\"] = range(1,len(test_images)+1)\n",
+        "df = df.reindex(columns = [\"image_id\",\"angle\",\"speed\"])\n",
+        "df.index = df[\"image_id\"]\n",
+        "df = df[[\"angle\",\"speed\"]]\n",
+        "#write\n",
+        "df.to_csv(prediction_data_output_directory + '/prediction_speed_angle_independently.csv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    }
+  ]
+}
