@@ -2,7 +2,7 @@
 """
 Created on Thu Mar  5 21:15:37 2020
 
-@author: Martin Sanner
+@author: Martin Sanner, Max Storr, Akinola Wilson
 """
 
 import tensorflow as tf
