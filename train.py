@@ -116,6 +116,30 @@ X_train, X_valid, y_train, y_valid = train_test_split( imgs, targets, test_size=
 print("Training data: %d\nValidation data: %d" % (len(X_train), len(X_valid)))
 
 #Define Model:
+# MobileNetV2
+base_model = tf.keras.applications.MobileNetV2(input_shape=in_shape, 
+    include_top=False, weights='imagenet')
+base_model.trainable = False
+model = Sequential([
+    base_model,
+    tf.keras.layers.GlobalAveragePooling2D(),
+    Dense(2)
+])
+print(model.summary())
+
+
+# InceptionV3
+base_model = tf.keras.applications.InceptionV3(input_shape=in_shape, 
+    include_top=False, weights='imagenet')
+base_model.trainable = False
+model = Sequential([
+    base_model,
+    tf.keras.layers.GlobalAveragePooling2D(),
+    Dense(2)
+])
+print(model.summary())
+
+
 def Model():
     model = Sequential()
     model.add(BatchNormalization(input_shape = in_shape))
@@ -156,18 +180,50 @@ aug = imgprep.ImageDataGenerator(rotation_range=20, zoom_range=0.15,
 	horizontal_flip=True, fill_mode="nearest")
 
 # saves the model weights after each epoch if the validation loss decreased
+class PredictionCallback(tf.keras.callbacks.Callback):
+    """On an improved epoch, make predictions for the assessment data
+    
+    Arguments:
+        test_images: the assessment data you want predictions for every
+        time the model improves.
+        global_best: the best MSE loss score across all your models.
+    """
+
+    def __init__(self, test_images, global_best=np.Inf):
+        super(PredictionCallback, self).__init__()
+
+        self.test_images = test_images
+        self.global_best = global_best
+
+    def on_epoch_end(self, epoch, logs=None):
+        current = logs.get('loss')
+        if np.less(current, self.best):
+            self.global_best = self.best
+            self.make_prediction()
+
+    def make_prediction(self):
+        colnames = ["angle","speed"]
+        prediction = model.predict(test_images[0])
+        df = pd.DataFrame(prediction, columns = colnames)
+        df["image_id"] = range(1, len(test_images[0])+1)
+        df = df.reindex(columns = ["image_id","angle","speed"])
+        df.index = df["image_id"]
+        df = df[["angle","speed"]]
+        #write
+        df.to_csv("prediction.csv")
 
         
 checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(model_output_dir,'AI_driver_check_all.h5'), verbose=1, save_best_only=True)
+prediction_callback = PredictionCallback(test_images=load_test_dataset())
 es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=1, mode='auto', baseline=None, restore_best_weights=True)
-history = model.fit_generator(aug.flow(np.array(X_train),y_train,batch_size = 100),
+history = pick_a_tl_model.fit_generator(aug.flow(np.array(X_train),y_train,batch_size = 100),
                               steps_per_epoch=300,
                               epochs=500,
                               validation_data = image_data_gen(X_valid,y_valid,100),
                               validation_steps=200,
                               verbose=1,
                               shuffle=1,
-                              callbacks=[checkpoint_callback,es_callback])
+                              callbacks=[checkpoint_callback, es_callback])
 # always save model output as soon as model finishes training
 name = os.path.join(model_output_dir,'AI_driver_all.h5')
 model.save(name)
@@ -181,16 +237,16 @@ results[mode] = [history.history['loss'][-1],history.history['val_loss'][-1]]
 
 
 #create prediction
-colnames = ["angle","speed"]
-test_images = load_test_dataset()
-prediction = model.predict(test_images[0])
-df = pd.DataFrame(prediction, columns = colnames)
-df["image_id"] = range(1,len(test_images)+1)
-df = df.reindex(columns = ["image_id","angle","speed"])
-df.index = df["image_id"]
-df = df[["angle","speed"]]
-#write
-df.to_csv("prediction.csv")
+# colnames = ["angle","speed"]
+# test_images = load_test_dataset()
+# prediction = model.predict(test_images[0])
+# df = pd.DataFrame(prediction, columns = colnames)
+# df["image_id"] = range(1,len(test_images)+1)
+# df = df.reindex(columns = ["image_id","angle","speed"])
+# df.index = df["image_id"]
+# df = df[["angle","speed"]]
+# #write
+# df.to_csv("prediction.csv")
 
 
 #converter = tf.lite.TFLiteConverter.from_keras_model(model)
